@@ -265,6 +265,45 @@ server = function(input, output, session) {
     function(x) {
       #print(x)
       renderUI({
+        
+        
+        
+        
+        
+        
+        # get name and type of ui component needed from info
+        var_names_ = as.character(rdata_select_prepared[1,])
+        print(var_names_)
+        types_ = as.character(rdata_select_prepared[2,])
+        print(types_ )
+        
+        type_options_ = lapply(seq_along(var_names_), function(i) {
+          if(types_[i] == 'numeric') {
+            # create checkboxes for all possible options of interest
+            xz <<- c(xz, paste0('Search ', var_names_[i], sep = ''),
+                     paste0('Filter greater than ', var_names_[i], sep = ''),
+                     paste0('Filter less than ', var_names_[i], sep = ''),
+                     paste0('Sort low to high ', var_names_[i], sep = ''),
+                     paste0('Sort high to low ', var_names_[i], sep = ''))
+          } else if (types_[i] == 'character') {
+            # create checkboxes for all possible options of interest
+            xz <<- c(xz, paste0('Search ', var_names_[i], sep = ''))
+          }
+        })
+        
+        
+        
+        
+        create_UI_component = function(x) {
+          # use grep to find each type
+        }
+        
+        
+        
+        
+        
+        
+        
         print('tr 6')
         req(length(rdata_select_prepared) > 0)
         #req(input$update_select)
@@ -403,7 +442,7 @@ server = function(input, output, session) {
         }
         print('tr 7')
         return(
-          lapply(rdata_select_prepared, create_UI_component)
+          lapply(, create_UI_component)
         )
         
       })
