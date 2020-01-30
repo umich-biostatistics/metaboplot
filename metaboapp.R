@@ -95,21 +95,21 @@ server = function(input, output, session) {
     return(parseDirPath(volumes, input$dir))
   })
   
-  observe({
-    if(!is.null(mdat_path())) {
-      path_to_images$data = mdat_path()
-      all_files = list.files(path_to_images$data)
-      jpg_files$data = all_files[all_files %>% grepl(pattern = "*.jpg")]
-    }
-    #path_to_images = parseDirPath(volumes, input$directory)
-    #renderImage()
-    #renderImage#######################################################################
-  })
+  # observe({
+  #   if(!is.null(mdat_path())) {
+  #     path_to_images$data = mdat_path()
+  #     all_files = list.files(path_to_images$data)
+  #     jpg_files$data = all_files[all_files %>% grepl(pattern = "*.jpg")]
+  #   }
+  #   #path_to_images = parseDirPath(volumes, input$directory)
+  #   #renderImage()
+  #   #renderImage#######################################################################
+  # })
   
-  path_to_images = 
-    reactiveValues(
-      'data' = c()
-    )
+  # path_to_images = 
+  #   reactiveValues(
+  #     'data' = c()
+  #   )
   
   # store data set
   rdata_set = 
@@ -127,16 +127,16 @@ server = function(input, output, session) {
       'data' = data.frame()
     )
   
-  jpg_files = 
-    reactiveValues(
-      'data' = data.frame()
-    )
+  # jpg_files = 
+  #   reactiveValues(
+  #     'data' = data.frame()
+  #   )
   
   
-  rdata_set_cumul = 
-    reactiveValues(
-      'data' = data.frame()
-    )
+  # rdata_set_cumul = 
+  #   reactiveValues(
+  #     'data' = data.frame()
+  #   )
   
   # search_settings = 
   #   reactiveValues(
@@ -171,9 +171,20 @@ server = function(input, output, session) {
     )
   })
   
-  observeEvent(input$update_select, {
+  # observeEvent(input$update_select, {
+  #   vars = input$select_vars
+  #   sel_data = rdata_set$data %>% select(!!vars)
+  #   var_type = 
+  #     (sel_data %>% 
+  #        dplyr::summarise_all(class) %>% 
+  #        tidyr::gather(variable, class))
+  #   rdata_set_select$data = var_type
+  # })
+  
+  update_select_helper = reactive({
+    req(input$select_vars)
     vars = input$select_vars
-    sel_data = rdata_set$data %>% select(!!vars)
+    sel_data = isolate(rdata_set$data) %>% select(!!vars)
     var_type = 
       (sel_data %>% 
          dplyr::summarise_all(class) %>% 
@@ -181,10 +192,14 @@ server = function(input, output, session) {
     rdata_set_select$data = var_type
   })
   
-  observeEvent(rdata_set_select$data, {
+  selected_to_tibble = reactive({
     req('tbl_df' %in% class(rdata_set_select$data)) 
     rdata_select_prepared$data = as_tibble(t(rdata_set_select$data))
   })
+  # observeEvent(rdata_set_select$data, {
+  #   req('tbl_df' %in% class(rdata_set_select$data)) 
+  #   rdata_select_prepared$data = as_tibble(t(rdata_set_select$data))
+  # })
   
   # observeEvent(jpg_files$data, {
   #   req(length(jpg_files$data > 1))
@@ -271,6 +286,8 @@ server = function(input, output, session) {
   observeEvent(input$update_select, {
     search_settings <<- list()
     output$sidebar_to_explore = sidebar_to_explore(reactive(input$update_select))
+    update_select_helper()
+    selected_to_tibble()
   })
     
   
@@ -405,7 +422,7 @@ server = function(input, output, session) {
     }
     
     file_list <<- rdata_set_cumulate$Filename
-    print(file_list)
+    #print(file_list)
   }
   
   core = reactive({
@@ -413,20 +430,21 @@ server = function(input, output, session) {
     req(input$run)
     # reactive on run only 
     input$run
-    print('input$run called')
+    #print('input$run called')
     # call new filtering function on the selections (isolated)
     filtering()
-    
+    #print(paste0(isolate(mdat_path()), file_list[1], sep = '/'))
     # store images in output
     lapply(seq_along(file_list), function(i) {
-      print(file_list)
+      #print(file_list)
       output[[paste0("images", i)]] <- renderImage({
-        return(list(
-          src = file_list[i],
+        print(paste(isolate(mdat_path()), file_list[i], sep = '/'))
+        list(
+          src = paste(isolate(mdat_path()), file_list[i], sep = '/'),
           filetype = "image/jpeg",
-          height = 200,
-          width = 300
-        ))
+          height = 500,
+          width = 700
+        )
       }, deleteFile = FALSE)
     })
     
