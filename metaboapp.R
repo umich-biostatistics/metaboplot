@@ -13,6 +13,8 @@ search_settings = list()
 
 file_list = list()
 
+rdata_set_cumulate = data.frame()
+
 inactivity <- "function idleTimer() {
 var t = setTimeout(logout, 120000);
 window.onmousemove = resetTimer; // catches mouse movements
@@ -267,6 +269,7 @@ server = function(input, output, session) {
   
    
   observeEvent(input$update_select, {
+    search_settings <<- list()
     output$sidebar_to_explore = sidebar_to_explore(reactive(input$update_select))
   })
     
@@ -326,123 +329,124 @@ server = function(input, output, session) {
   #}
   
   # Do the renderImage calls
+  # 
+  # csearch = function(x) {
+  #   
+  #   req(input$run)
+  #   
+  #   rdata_set_cumul$data = rdata_set$data
+  #   #rdata_set$data # original
+  #   #data_names = colnames(rdata_set$data)
+  #   search_settings_ = search_settings # list
+  #   #print(search_settings_)
+  #   #print(search_settings)
+  #   #rdata_set_select$data # selected and whatever else, filter
+  #   for (ipv in 1:length(search_settings_)) {
+  #     current_ = search_settings_[[ipv]]
+  #     column_ = sym(str_extract(current_, '[^_]+'))
+  #     input_ = input[[ search_settings_[[ipv]] ]]
+  #     if(grep('search', current_)) {
+  #       rdata_set_cumul$data = rdata_set_cumul$data %>% filter(!!column_ == !!input_)
+  #     } else if (grep('f_gt', current_)) {
+  #       rdata_set_cumul$data = rdata_set_cumul$data %>% filter(!!column_ >= !!input_)
+  #     } else if (grep('f_lt', current_)) {
+  #       rdata_set_cumul$data = rdata_set_cumul$data %>% filter(!!column_ <= !!input_)
+  #     } else if (grep('s_lh', current_)) {
+  #       rdata_set_cumul$data = rdata_set_cumul$data %>% arrange(!!input_)
+  #     } else if (grep('s_hl', current_)) {
+  #       rdata_set_cumul$data = rdata_set_cumul$data %>% arrange(desc(!!input_))
+  #     }
+  #     # read in jpg files and print them!
+  #   }
+  #   
+  #   file_list <<- rdata_set_cumul$data$Filename
+  #   
+  #   return(
+  #     lapply(seq_along(file_list), function(i) {
+  #       print(file_list)
+  #   output[[paste0("images", i)]] <- renderImage({
+  #     return(list(
+  #       src = file_list[i],
+  #       filetype = "image/jpeg",
+  #       height = 200,
+  #       width = 300
+  #     ))
+  #   }, deleteFile = FALSE)
+  # })
+  #   )
+  # }
+  # 
   
-  csearch = function(x) {
+  
+  ### new
+  
+  filtering = function() {
+    # remember to isolate reactive things
     
-    req(input$run)
-    
-    rdata_set_cumul$data = rdata_set$data
-    #rdata_set$data # original
-    #data_names = colnames(rdata_set$data)
-    search_settings_ = search_settings # list
-    #print(search_settings_)
-    #print(search_settings)
-    #rdata_set_select$data # selected and whatever else, filter
+    rdata_set_cumulate = isolate(rdata_set$data)
+    print(head(rdata_set_cumulate))
+    search_settings_ = search_settings
+    print(search_settings_)
     for (ipv in 1:length(search_settings_)) {
       current_ = search_settings_[[ipv]]
       column_ = sym(str_extract(current_, '[^_]+'))
       input_ = input[[ search_settings_[[ipv]] ]]
       if(grep('search', current_)) {
-        rdata_set_cumul$data = rdata_set_cumul$data %>% filter(!!column_ == !!input_)
+        rdata_set_cumulate = rdata_set_cumulate %>% filter(!!column_ == !!input_)
       } else if (grep('f_gt', current_)) {
-        rdata_set_cumul$data = rdata_set_cumul$data %>% filter(!!column_ >= !!input_)
+        rdata_set_cumulate = rdata_set_cumulate %>% filter(!!column_ >= !!input_)
       } else if (grep('f_lt', current_)) {
-        rdata_set_cumul$data = rdata_set_cumul$data %>% filter(!!column_ <= !!input_)
+        rdata_set_cumulate = rdata_set_cumulate %>% filter(!!column_ <= !!input_)
       } else if (grep('s_lh', current_)) {
-        rdata_set_cumul$data = rdata_set_cumul$data %>% arrange(!!input_)
+        rdata_set_cumulate = rdata_set_cumulate %>% arrange(!!input_)
       } else if (grep('s_hl', current_)) {
-        rdata_set_cumul$data = rdata_set_cumul$data %>% arrange(desc(!!input_))
+        rdata_set_cumulate = rdata_set_cumulate %>% arrange(desc(!!input_))
       }
-      # read in jpg files and print them!
     }
     
-    file_list <<- rdata_set_cumul$data$Filename
-    
-    return(
-      lapply(seq_along(file_list), function(i) {
-        print(file_list)
-    output[[paste0("images", i)]] <- renderImage({
-      return(list(
-        src = file_list[i],
-        filetype = "image/jpeg",
-        height = 200,
-        width = 300
-      ))
-    }, deleteFile = FALSE)
-  })
-    )
+    file_list <<- rdata_set_cumulate$Filename
+    print(file_list)
   }
   
+  core = reactive({
+    
+    req(input$run)
+    # reactive on run only 
+    input$run
+    print('input$run called')
+    # call new filtering function on the selections (isolated)
+    filtering()
+    
+    # store images in output
+    lapply(seq_along(file_list), function(i) {
+      print(file_list)
+      output[[paste0("images", i)]] <- renderImage({
+        return(list(
+          src = file_list[i],
+          filetype = "image/jpeg",
+          height = 200,
+          width = 300
+        ))
+      }, deleteFile = FALSE)
+    })
+    
+
+    
+  })
   
-  # Send the imageOutputs to the client
+  
+  
   output$imageUI <- renderUI({
-    csearch(reactive(input$run))
+    core()
+    print('core run complete')
     lapply(seq_along(file_list), function(i) {
       imageOutput(paste0("images", i))
     })
   })
   
-  # 
-  # output$imageUI = 
-  #   renderUI({
-  #     
-  #     req(input$run)
-  #     
-  #     rdata_set_cumul$data = rdata_set$data
-  #     #rdata_set$data # original
-  #     #data_names = colnames(rdata_set$data)
-  #     search_settings_ = search_settings # list
-  #     #print(search_settings_)
-  #     #print(search_settings)
-  #     #rdata_set_select$data # selected and whatever else, filter
-  #     for (ipv in 1:length(search_settings_)) {
-  #       current_ = search_settings_[[ipv]]
-  #       column_ = sym(str_extract(current_, '[^_]+'))
-  #       input_ = input[[ search_settings_[[ipv]] ]]
-  #       if(grep('search', current_)) {
-  #         rdata_set_cumul$data = rdata_set_cumul$data %>% filter(!!column_ == !!input_)
-  #       } else if (grep('f_gt', current_)) {
-  #         rdata_set_cumul$data = rdata_set_cumul$data %>% filter(!!column_ >= !!input_)
-  #       } else if (grep('f_lt', current_)) {
-  #         rdata_set_cumul$data = rdata_set_cumul$data %>% filter(!!column_ <= !!input_)
-  #       } else if (grep('s_lh', current_)) {
-  #         rdata_set_cumul$data = rdata_set_cumul$data %>% arrange(!!input_)
-  #       } else if (grep('s_hl', current_)) {
-  #         rdata_set_cumul$data = rdata_set_cumul$data %>% arrange(desc(!!input_))
-  #       }
-  #       # read in jpg files and print them!
-  #     }
-  #     
-  #       # return(
-  #       #   lapply(rdata_set_cumul$data$Filename, function(x) {
-  #       #     path_ = paste(path_to_images$data, '/', x, sep = '')
-  #       #     renderUI({ renderImage(image_read(path_)) })
-  #       #   
-  #       #   })
-  #   #)
-  #     
-  #     return(
-  #       lapply(rdata_set_cumul$data$Filename, function(x) {
-  #         path_ = unlist(paste(path_to_images$data, '/', x, sep = ''))
-  #         print(path_)
-  #         renderUI({ renderImage(image_read(path_)) })
-  #       })
-  #     )
-  #     
-  #     
-  #     # #isolate({
-  #     # #result = results()
-  #     # #image_read(path_)
-  #     # return(
-  #     #   lapply(result, function(x) {
-  #     #     #renderImage(image_read(x))
-  #     #     print(result)
-  #     #   })
-  #     # )
-  #     # #})
-  #     
-  #   })
-  # 
+  ###
+  
+  
   
 }
 
