@@ -15,6 +15,12 @@ file_list = list()
 
 rdata_set_cumulate = data.frame()
 
+rdata_set_select = data.frame()
+
+rdata_select_prepared = data.frame()
+
+rdata_set = data.frame()
+
 inactivity <- "function idleTimer() {
 var t = setTimeout(logout, 120000);
 window.onmousemove = resetTimer; // catches mouse movements
@@ -92,7 +98,8 @@ server = function(input, output, session) {
   
   mdat_path <- reactive({
     #print(parseDirPath(volumes, input$directory))
-    return(parseDirPath(volumes, input$dir))
+    print('tr 1')
+    return(parseDirPath(volumes, isolate(input$dir)))
   })
   
   # observe({
@@ -112,20 +119,20 @@ server = function(input, output, session) {
   #   )
   
   # store data set
-  rdata_set = 
-    reactiveValues(
-      'data' = data.frame()
-    )
+  # rdata_set = 
+  #   reactiveValues(
+  #     'data' = data.frame()
+  #   )
   
-  rdata_set_select = 
-    reactiveValues(
-      'data' = data.frame()
-    )
+  # rdata_set_select = 
+  #   reactiveValues(
+  #     'data' = data.frame()
+  #   )
   
-  rdata_select_prepared = 
-    reactiveValues(
-      'data' = data.frame()
-    )
+  # rdata_select_prepared = 
+  #   reactiveValues(
+  #     'data' = data.frame()
+  #   )
   
   # jpg_files = 
   #   reactiveValues(
@@ -145,13 +152,15 @@ server = function(input, output, session) {
   
   # read in data set
   observeEvent(input$data_set, {
-    rdata_set$data = read_csv(input$data_set$datapath)
+    print('tr 2')
+    rdata_set <<- read_csv(input$data_set$datapath)
   })
   
   output$contents = 
     renderDataTable({
+      print('tr 3')
       req(rdata_set)
-      return(rdata_set$data)
+      return(rdata_set)
     })
   
   # observeEvent(input$update_select, {
@@ -159,10 +168,12 @@ server = function(input, output, session) {
   # })
   
   observeEvent(input$view_options, {
-    req(nrow(rdata_set$data) > 0)
+    print('tr 4')
+    req(nrow(rdata_set) > 0)
+    print('made it here')
     req(input$data_set)
     #print(rdata_set$data)
-    x = colnames(rdata_set$data)
+    x = colnames(rdata_set)
     #print(x)
     updateCheckboxGroupInput(session, 'select_vars',
                              label = 'Select variables on which to explore metabolites',
@@ -182,19 +193,23 @@ server = function(input, output, session) {
   # })
   
   update_select_helper = reactive({
-    req(input$select_vars)
-    vars = input$select_vars
-    sel_data = isolate(rdata_set$data) %>% select(!!vars)
+    print('tr 4')
+    #req(input$select_vars)
+    input$update_select
+    vars = isolate(input$select_vars)
+    sel_data = rdata_set %>% select(!!vars)
     var_type = 
       (sel_data %>% 
          dplyr::summarise_all(class) %>% 
          tidyr::gather(variable, class))
-    rdata_set_select$data = var_type
+    rdata_set_select <<- var_type
   })
   
   selected_to_tibble = reactive({
-    req('tbl_df' %in% class(rdata_set_select$data)) 
-    rdata_select_prepared$data = as_tibble(t(rdata_set_select$data))
+    print('tr 5')
+    input$update_select
+    req('tbl_df' %in% class(rdata_set_select)) 
+    rdata_select_prepared <<- as_tibble(t(rdata_set_select))
   })
   # observeEvent(rdata_set_select$data, {
   #   req('tbl_df' %in% class(rdata_set_select$data)) 
@@ -214,7 +229,8 @@ server = function(input, output, session) {
     function(x) {
       #print(x)
       renderUI({
-        req(length(rdata_select_prepared$data) > 0)
+        print('tr 6')
+        req(length(rdata_select_prepared) > 0)
         #req(input$update_select)
         #req(input$update_select)
         create_UI_component = function(x) {
@@ -228,7 +244,7 @@ server = function(input, output, session) {
               tagList(
                 #renderPrint({print(colname)}),
                 selectInput(ID, paste('Search', colname, sep = ' '),
-                            choices = unique(rdata_set$data %>% select(!!colname))),
+                            choices = unique(rdata_set %>% select(!!colname))),
                 br(),
                 hr()
               )
@@ -250,15 +266,15 @@ server = function(input, output, session) {
               tagList(
                 #renderPrint({print(colname)}),
                 selectInput(IDs, paste('Search', colname, sep = ' '),
-                            choices = unique(rdata_set$data %>% select(!!colname))),
+                            choices = unique(rdata_set %>% select(!!colname))),
                 sliderInput(IDfgt, paste('Fliter greater than', colname, sep = ' '),
-                            min = min(rdata_set$data %>% select(!!colname)), 
-                            max = max(rdata_set$data %>% select(!!colname)), 
-                            value = min(rdata_set$data %>% select(!!colname))),
+                            min = min(rdata_set %>% select(!!colname)), 
+                            max = max(rdata_set %>% select(!!colname)), 
+                            value = min(rdata_set %>% select(!!colname))),
                 sliderInput(IDflt, paste('Fliter less than', colname, sep = ' '),
-                            min = min(rdata_set$data %>% select(!!colname)), 
-                            max = max(rdata_set$data %>% select(!!colname)), 
-                            value = max(rdata_set$data %>% select(!!colname))),
+                            min = min(rdata_set %>% select(!!colname)), 
+                            max = max(rdata_set %>% select(!!colname)), 
+                            value = max(rdata_set %>% select(!!colname))),
                 actionButton(IDslh, paste('Sort low to high', colname, sep = ' ')),
                 actionButton(IDshl, paste('Sort high to low', colname, sep = ' ')),
                 br(),
@@ -274,9 +290,9 @@ server = function(input, output, session) {
           }
           return(UI_component)
         }
-        
+        print('tr 7')
         return(
-          lapply(rdata_select_prepared$data, create_UI_component)
+          lapply(rdata_select_prepared, create_UI_component)
         )
         
       })
@@ -284,6 +300,7 @@ server = function(input, output, session) {
   
    
   observeEvent(input$update_select, {
+    print('tr 8')
     search_settings <<- list()
     output$sidebar_to_explore = sidebar_to_explore(reactive(input$update_select))
     update_select_helper()
@@ -299,11 +316,13 @@ server = function(input, output, session) {
   
   get_data_on_click = 
     eventReactive(input$data_preview, {
-      return(rdata_set$data)
+      print('tr 9')
+      return(rdata_set)
     })
   
   output$contents = 
     renderDataTable({
+      print('tr 10')
       return(get_data_on_click())
     }, options = list(pageLength = 20))
   
@@ -399,8 +418,8 @@ server = function(input, output, session) {
   
   filtering = function() {
     # remember to isolate reactive things
-    
-    rdata_set_cumulate = isolate(rdata_set$data)
+    print('tr 11')
+    rdata_set_cumulate = rdata_set
     print(head(rdata_set_cumulate))
     search_settings_ = search_settings
     print(search_settings_)
@@ -426,13 +445,13 @@ server = function(input, output, session) {
   }
   
   core = reactive({
-    
+    print('tr 12')
     req(input$run)
     # reactive on run only 
     input$run
     #print('input$run called')
     # call new filtering function on the selections (isolated)
-    filtering()
+    isolate(filtering())
     #print(paste0(isolate(mdat_path()), file_list[1], sep = '/'))
     # store images in output
     lapply(seq_along(file_list), function(i) {
@@ -456,6 +475,7 @@ server = function(input, output, session) {
   
   output$imageUI <- renderUI({
     core()
+    print('tr 13')
     print('core run complete')
     lapply(seq_along(file_list), function(i) {
       imageOutput(paste0("images", i))
