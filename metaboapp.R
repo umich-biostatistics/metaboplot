@@ -334,14 +334,91 @@ server = function(input, output, session) {
       })
     }
   
+  
+  
+  sidebar_to_explore2 = 
+    function(x) {
+      #print(x)
+      renderUI({
+        print('tr 6')
+        req(length(rdata_select_prepared) > 0)
+        #req(input$update_select)
+        #req(input$update_select)
+        create_UI_component = function(x) {
+          colname = x[1]
+          type = x[2]
+          ID = paste(colname, type, 'search', sep = '_')
+          
+          if(type == "character") {
+            # UI box with selectInput
+            UI_component = renderUI({
+              tagList(
+                #renderPrint({print(colname)}),
+                selectInput(ID, paste('Search', colname, sep = ' '),
+                            choices = unique(rdata_set %>% select(!!colname))),
+                br(),
+                hr()
+              )
+            })
+            
+            # store search setting data
+            search_settings <<-  c(search_settings, ID)
+            #print(search_settings %>% list_merge(ID))
+            #print(ID)
+          } else if(type == "numeric") {
+            # UI box with filter (two sliders) and sort (low high, high low)
+            IDs = paste(colname, type, 'search', sep = '_')
+            IDfgt = paste(colname, type, 'f_gt', sep = '_')
+            IDflt = paste(colname, type, 'f_lt', sep = '_')
+            IDslh = paste(colname, type, 's_lh', sep = '_')
+            IDshl = paste(colname, type, 's_hl', sep = '_')
+            
+            UI_component = renderUI({
+              tagList(
+                #renderPrint({print(colname)}),
+                selectInput(IDs, paste('Search', colname, sep = ' '),
+                            choices = unique(rdata_set %>% select(!!colname))),
+                sliderInput(IDfgt, paste('Fliter greater than', colname, sep = ' '),
+                            min = min(rdata_set %>% select(!!colname)), 
+                            max = max(rdata_set %>% select(!!colname)), 
+                            value = min(rdata_set %>% select(!!colname))),
+                sliderInput(IDflt, paste('Fliter less than', colname, sep = ' '),
+                            min = min(rdata_set %>% select(!!colname)), 
+                            max = max(rdata_set %>% select(!!colname)), 
+                            value = max(rdata_set %>% select(!!colname))),
+                actionButton(IDslh, paste('Sort low to high', colname, sep = ' ')),
+                actionButton(IDshl, paste('Sort high to low', colname, sep = ' ')),
+                br(),
+                hr()
+              )
+            })
+            search_settings <<- c(search_settings, IDs, IDfgt, IDflt, IDslh, IDshl)
+            #print(search_settings %>% list_merge(IDs, IDfgt, IDflt, IDslh, IDshl))
+            # store search setting data
+            #print(search_settings %>% 
+            #  list_merge(list(IDs, IDfgt, IDflt, IDslh, IDshl)))
+            #print(search_settings)
+          }
+          return(UI_component)
+        }
+        print('tr 7')
+        return(
+          lapply(rdata_select_prepared, create_UI_component)
+        )
+        
+      })
+    }
+  
    
   observeEvent(input$update_select, {
     print('tr 8')
     search_settings <<- list()
     xz <<- c()
-    output$sidebar_to_explore = sidebar_to_explore(reactive(input$update_select))
+    #output$sidebar_to_explore = sidebar_to_explore(reactive(input$update_select))
+    
     update_select_helper()
     proc_selected()
+    output$sidebar_to_explore2 = sidebar_to_explore2(reactive(input$update_select_w_options))
     
   })
   
