@@ -21,6 +21,8 @@ rdata_select_prepared = data.frame()
 
 rdata_set = data.frame()
 
+xz = c()
+
 inactivity <- "function idleTimer() {
 var t = setTimeout(logout, 120000);
 window.onmousemove = resetTimer; // catches mouse movements
@@ -68,6 +70,11 @@ ui = #secure_app(head_auth = tags$script(inactivity),
                     checkboxGroupInput('select_vars', label = 'Select variables on which to explore metabolites',
                                        choices = c()),
                     actionButton('update_select', 'Update selected variable'),
+                    br(),
+                    br(),
+                    checkboxGroupInput('select_sorting_options', label = 'Select sorting options',
+                                       choices = c()),
+                    actionButton('update_select_w_options', 'Update with options'),
                     br(),
                     br(),
                     uiOutput('sidebar_to_explore'),
@@ -205,11 +212,40 @@ server = function(input, output, session) {
     rdata_set_select <<- var_type
   })
   
-  selected_to_tibble = reactive({
+  proc_selected = reactive({
     print('tr 5')
     input$update_select
     req('tbl_df' %in% class(rdata_set_select)) 
     rdata_select_prepared <<- as_tibble(t(rdata_set_select))
+    print(rdata_select_prepared)
+    
+    print('tr 5.5')
+    
+    
+    var_names_ = as.character(rdata_select_prepared[1,])
+    print(var_names_)
+    types_ = as.character(rdata_select_prepared[2,])
+    print(types_ )
+    
+    type_options_ = lapply(seq_along(var_names_), function(i) {
+      if(types_[i] == 'numeric') {
+        # create checkboxes for all possible options of interest
+        xz <<- c(xz, paste0('Search ', var_names_[i], sep = ''),
+                     paste0('Filter greater than ', var_names_[i], sep = ''),
+                     paste0('Filter less than ', var_names_[i], sep = ''),
+                     paste0('Sort low to high ', var_names_[i], sep = ''),
+                     paste0('Sort high to low ', var_names_[i], sep = ''))
+      } else if (types_[i] == 'character') {
+        # create checkboxes for all possible options of interest
+        xz <<- c(xz, paste0('Search ', var_names_[i], sep = ''))
+      }
+    })
+    print(xz)
+    updateCheckboxGroupInput(session, 'select_sorting_options',
+                             label = 'Select variables on which to explore metabolites',
+                             choices = xz,
+                             selected = c())
+    
   })
   # observeEvent(rdata_set_select$data, {
   #   req('tbl_df' %in% class(rdata_set_select$data)) 
@@ -302,17 +338,23 @@ server = function(input, output, session) {
   observeEvent(input$update_select, {
     print('tr 8')
     search_settings <<- list()
+    xz <<- c()
     output$sidebar_to_explore = sidebar_to_explore(reactive(input$update_select))
     update_select_helper()
-    selected_to_tibble()
+    proc_selected()
+    
   })
+  
+  # observeEvent(input$update_select_w_options {
+  #   
+  # })
+  
+  # updates list of selection options ( what to sort on for each variable )
+  # update_options_helper = reactive({
+  # 
+  # })
     
   
-  #output$sidebar_to_explore = sidebar_to_explore
-  
-  # eventReactive(sidebar_to_explore, {
-  #   rdata_set$data 
-  # }) ################################################################################## note this chunk
   
   get_data_on_click = 
     eventReactive(input$data_preview, {
@@ -325,96 +367,7 @@ server = function(input, output, session) {
       print('tr 10')
       return(get_data_on_click())
     }, options = list(pageLength = 20))
-  
-  
-  #results = function() {
-    # observeEvent(input$run, {
-    #   # on run click, extract access inputs and based on name pattern
-    #   # do the right data processing to the data set
-    #   # when to go from rdata_set to rdata_set_select
-    #   rdata_set_select$data = rdata_set$data
-    #   rdata_set$data # original
-    #   data_names = colnames(rdata_set$data)
-    #   search_settings_ = search_settings
-    #   rdata_set_select$data # selected and whatever else, filter
-    #   for (ipv in 1:length(search_settings_)) {
-    #     current_ = search_settings_[[ipv]]
-    #     column_ = str_extract(current_, '[^_]+')
-    #     input_ = input[[ search_settings_[[ipv]] ]]
-    #     if(grep('search', current_)) {
-    #       rdata_set_select$data = rdata_set_select$data %>% filter(sym(!!column_) == !!current_)
-    #     } else if (grep('f_gt', current_)) {
-    #       rdata_set_select$data = rdata_set_select$data %>% filter(sym(!!column_) >= !!current_)
-    #     } else if (grep('f_lt', current_)) {
-    #       rdata_set_select$data = rdata_set_select$data %>% filter(sym(!!column_) <= !!current_)
-    #     } else if (grep('s_lh', current_)) {
-    #       rdata_set_select$data = rdata_set_select$data %>% arrange(sym(!!column_))
-    #     } else if (grep('s_hl', current_)) {
-    #       rdata_set_select$data = rdata_set_select$data %>% arrange(desc(sym(!!column_)))
-    #     }
-    #     # read in jpg files and print them!
-    #     
-    #     return(
-    #       lapply(rdata_set_select$data$Filename, function(x) {
-    #         print( paste(path_to_images$data, '/', x))
-    #         paste(path_to_images$data, '/', x)
-    #       })
-    #     )
-    #   }
-    # })
-  #}
-  
-  # Do the renderImage calls
-  # 
-  # csearch = function(x) {
-  #   
-  #   req(input$run)
-  #   
-  #   rdata_set_cumul$data = rdata_set$data
-  #   #rdata_set$data # original
-  #   #data_names = colnames(rdata_set$data)
-  #   search_settings_ = search_settings # list
-  #   #print(search_settings_)
-  #   #print(search_settings)
-  #   #rdata_set_select$data # selected and whatever else, filter
-  #   for (ipv in 1:length(search_settings_)) {
-  #     current_ = search_settings_[[ipv]]
-  #     column_ = sym(str_extract(current_, '[^_]+'))
-  #     input_ = input[[ search_settings_[[ipv]] ]]
-  #     if(grep('search', current_)) {
-  #       rdata_set_cumul$data = rdata_set_cumul$data %>% filter(!!column_ == !!input_)
-  #     } else if (grep('f_gt', current_)) {
-  #       rdata_set_cumul$data = rdata_set_cumul$data %>% filter(!!column_ >= !!input_)
-  #     } else if (grep('f_lt', current_)) {
-  #       rdata_set_cumul$data = rdata_set_cumul$data %>% filter(!!column_ <= !!input_)
-  #     } else if (grep('s_lh', current_)) {
-  #       rdata_set_cumul$data = rdata_set_cumul$data %>% arrange(!!input_)
-  #     } else if (grep('s_hl', current_)) {
-  #       rdata_set_cumul$data = rdata_set_cumul$data %>% arrange(desc(!!input_))
-  #     }
-  #     # read in jpg files and print them!
-  #   }
-  #   
-  #   file_list <<- rdata_set_cumul$data$Filename
-  #   
-  #   return(
-  #     lapply(seq_along(file_list), function(i) {
-  #       print(file_list)
-  #   output[[paste0("images", i)]] <- renderImage({
-  #     return(list(
-  #       src = file_list[i],
-  #       filetype = "image/jpeg",
-  #       height = 200,
-  #       width = 300
-  #     ))
-  #   }, deleteFile = FALSE)
-  # })
-  #   )
-  # }
-  # 
-  
-  
-  ### new
+
   
   filtering = function() {
     # remember to isolate reactive things
@@ -441,7 +394,6 @@ server = function(input, output, session) {
     }
     
     file_list <<- rdata_set_cumulate$Filename
-    #print(file_list)
   }
   
   core = reactive({
@@ -466,12 +418,7 @@ server = function(input, output, session) {
         )
       }, deleteFile = FALSE)
     })
-    
-
-    
   })
-  
-  
   
   output$imageUI <- renderUI({
     core()
@@ -481,9 +428,6 @@ server = function(input, output, session) {
       imageOutput(paste0("images", i))
     })
   })
-  
-  ###
-  
   
   
 }
