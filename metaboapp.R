@@ -327,7 +327,7 @@ server = function(input, output, session) {
   
   # Do the renderImage calls
   
-  csearch = function() {
+  csearch = function(x) {
     
     req(input$run)
     
@@ -376,7 +376,7 @@ server = function(input, output, session) {
   
   # Send the imageOutputs to the client
   output$imageUI <- renderUI({
-    csearch()
+    csearch(reactive(input$run))
     lapply(seq_along(file_list), function(i) {
       imageOutput(paste0("images", i))
     })
