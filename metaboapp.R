@@ -8,6 +8,7 @@ library(tidyverse)
 library(DT)
 library(purrr)
 library(magick)
+library(stringr)
 
 search_settings = list()
 
@@ -77,7 +78,7 @@ ui = #secure_app(head_auth = tags$script(inactivity),
                     actionButton('update_select_w_options', 'Update with options'),
                     br(),
                     br(),
-                    uiOutput('sidebar_to_explore'),
+                    uiOutput('sidebar_to_explore2'),
                     br(),
                     hr(),
                     actionButton('run', 'Run'),
@@ -242,7 +243,7 @@ server = function(input, output, session) {
     })
     print(xz)
     updateCheckboxGroupInput(session, 'select_sorting_options',
-                             label = 'Select variables on which to explore metabolites',
+                             label = 'Select search and sort options for each variable',
                              choices = xz,
                              selected = c())
     
@@ -261,192 +262,173 @@ server = function(input, output, session) {
   
   
   
-  sidebar_to_explore = 
-    function(x) {
+  sidebar_to_explore2 = 
+    function(reactor) {
       #print(x)
       renderUI({
         
-        
-        
-        
-        
-        
-        # get name and type of ui component needed from info
-        var_names_ = as.character(rdata_select_prepared[1,])
-        print(var_names_)
-        types_ = as.character(rdata_select_prepared[2,])
-        print(types_ )
-        
-        type_options_ = lapply(seq_along(var_names_), function(i) {
-          if(types_[i] == 'numeric') {
-            # create checkboxes for all possible options of interest
-            xz <<- c(xz, paste0('Search ', var_names_[i], sep = ''),
-                     paste0('Filter greater than ', var_names_[i], sep = ''),
-                     paste0('Filter less than ', var_names_[i], sep = ''),
-                     paste0('Sort low to high ', var_names_[i], sep = ''),
-                     paste0('Sort high to low ', var_names_[i], sep = ''))
-          } else if (types_[i] == 'character') {
-            # create checkboxes for all possible options of interest
-            xz <<- c(xz, paste0('Search ', var_names_[i], sep = ''))
-          }
-        })
-        
-        
-        
+        # # get name and type of ui component needed from info
+        # var_names_ = as.character(rdata_select_prepared[1,])
+        # print(var_names_)
+        # types_ = as.character(rdata_select_prepared[2,])
+        # print(types_ )
+        # 
+        # type_options_ = lapply(seq_along(var_names_), function(i) {
+        #   if(types_[i] == 'numeric') {
+        #     # create checkboxes for all possible options of interest
+        #     xz <<- c(xz, paste0('Search ', var_names_[i], sep = ''),
+        #              paste0('Filter greater than ', var_names_[i], sep = ''),
+        #              paste0('Filter less than ', var_names_[i], sep = ''),
+        #              paste0('Sort low to high ', var_names_[i], sep = ''),
+        #              paste0('Sort high to low ', var_names_[i], sep = ''))
+        #   } else if (types_[i] == 'character') {
+        #     # create checkboxes for all possible options of interest
+        #     xz <<- c(xz, paste0('Search ', var_names_[i], sep = ''))
+        #   }
+        # })
         
         create_UI_component = function(x) {
           # use grep to find each type
-        }
-        
-        
-        
-        
-        
-        
-        
-        print('tr 6')
-        req(length(rdata_select_prepared) > 0)
-        #req(input$update_select)
-        #req(input$update_select)
-        create_UI_component = function(x) {
-          colname = x[1]
-          type = x[2]
-          ID = paste(colname, type, 'search', sep = '_')
-          
-          if(type == "character") {
-            # UI box with selectInput
-            UI_component = renderUI({
+          colname = word(x, -1)
+          ID = gsub(' ', '_', x)
+          search_settings <<-  c(search_settings, ID)
+          if(grepl('Search', x)) {
+            return(renderUI({
+              
               tagList(
-                #renderPrint({print(colname)}),
                 selectInput(ID, paste('Search', colname, sep = ' '),
                             choices = unique(rdata_set %>% select(!!colname))),
                 br(),
                 hr()
               )
-            })
-            
-            # store search setting data
-            search_settings <<-  c(search_settings, ID)
-            #print(search_settings %>% list_merge(ID))
-            #print(ID)
-          } else if(type == "numeric") {
-            # UI box with filter (two sliders) and sort (low high, high low)
-            IDs = paste(colname, type, 'search', sep = '_')
-            IDfgt = paste(colname, type, 'f_gt', sep = '_')
-            IDflt = paste(colname, type, 'f_lt', sep = '_')
-            IDslh = paste(colname, type, 's_lh', sep = '_')
-            IDshl = paste(colname, type, 's_hl', sep = '_')
-            
-            UI_component = renderUI({
+            }))
+          } else if(grepl('Filter greater than', x)) {
+            return(renderUI({
               tagList(
-                #renderPrint({print(colname)}),
-                selectInput(IDs, paste('Search', colname, sep = ' '),
-                            choices = unique(rdata_set %>% select(!!colname))),
-                sliderInput(IDfgt, paste('Fliter greater than', colname, sep = ' '),
-                            min = min(rdata_set %>% select(!!colname)), 
-                            max = max(rdata_set %>% select(!!colname)), 
-                            value = min(rdata_set %>% select(!!colname))),
-                sliderInput(IDflt, paste('Fliter less than', colname, sep = ' '),
-                            min = min(rdata_set %>% select(!!colname)), 
-                            max = max(rdata_set %>% select(!!colname)), 
-                            value = max(rdata_set %>% select(!!colname))),
-                actionButton(IDslh, paste('Sort low to high', colname, sep = ' ')),
-                actionButton(IDshl, paste('Sort high to low', colname, sep = ' ')),
+                sliderInput(ID, paste('Fliter greater than', colname, sep = ' '),
+                        min = min(rdata_set %>% select(!!colname)), 
+                        max = max(rdata_set %>% select(!!colname)), 
+                        value = min(rdata_set %>% select(!!colname))),
                 br(),
                 hr()
               )
             })
-            search_settings <<- c(search_settings, IDs, IDfgt, IDflt, IDslh, IDshl)
-            #print(search_settings %>% list_merge(IDs, IDfgt, IDflt, IDslh, IDshl))
-            # store search setting data
-            #print(search_settings %>% 
-            #  list_merge(list(IDs, IDfgt, IDflt, IDslh, IDshl)))
-            #print(search_settings)
+            )
+          } else if(grepl('Filter less than', x)) {
+            return(renderUI({
+              tagList(
+                sliderInput(ID, paste('Filter less than', colname, sep = ' '),
+                            min = min(rdata_set %>% select(!!colname)), 
+                            max = max(rdata_set %>% select(!!colname)), 
+                            value = max(rdata_set %>% select(!!colname))),
+                br(),
+                hr()
+              )
+            })
+            )
+          } else if(grepl('Sort low to high', x)) {
+            return(renderUI({
+              tagList(
+                actionButton(ID, paste('Sort low to high', colname, sep = ' ')),
+                br(),
+                hr()
+              )
+            })
+            )
+          } else if(grepl('Sort high to low', x)) {
+            return(renderUI({
+              tagList(
+                actionButton(ID, paste('Sort high to low', colname, sep = ' ')),
+                br(),
+                hr()
+              )
+            })
+            )
+          } else {
+            return()
           }
-          return(UI_component)
         }
-        print('tr 7')
-        return(
-          lapply(rdata_select_prepared, create_UI_component)
-        )
+        
+        print('tr 6')
+        lapply(xz, create_UI_component)
         
       })
     }
   
   
   
-  sidebar_to_explore2 = 
-    function(x) {
-      #print(x)
-      renderUI({
-        print('tr 6')
-        req(length(rdata_select_prepared) > 0)
-        #req(input$update_select)
-        #req(input$update_select)
-        create_UI_component = function(x) {
-          colname = x[1]
-          type = x[2]
-          ID = paste(colname, type, 'search', sep = '_')
-          
-          if(type == "character") {
-            # UI box with selectInput
-            UI_component = renderUI({
-              tagList(
-                #renderPrint({print(colname)}),
-                selectInput(ID, paste('Search', colname, sep = ' '),
-                            choices = unique(rdata_set %>% select(!!colname))),
-                br(),
-                hr()
-              )
-            })
-            
-            # store search setting data
-            search_settings <<-  c(search_settings, ID)
-            #print(search_settings %>% list_merge(ID))
-            #print(ID)
-          } else if(type == "numeric") {
-            # UI box with filter (two sliders) and sort (low high, high low)
-            IDs = paste(colname, type, 'search', sep = '_')
-            IDfgt = paste(colname, type, 'f_gt', sep = '_')
-            IDflt = paste(colname, type, 'f_lt', sep = '_')
-            IDslh = paste(colname, type, 's_lh', sep = '_')
-            IDshl = paste(colname, type, 's_hl', sep = '_')
-            
-            UI_component = renderUI({
-              tagList(
-                #renderPrint({print(colname)}),
-                selectInput(IDs, paste('Search', colname, sep = ' '),
-                            choices = unique(rdata_set %>% select(!!colname))),
-                sliderInput(IDfgt, paste('Fliter greater than', colname, sep = ' '),
-                            min = min(rdata_set %>% select(!!colname)), 
-                            max = max(rdata_set %>% select(!!colname)), 
-                            value = min(rdata_set %>% select(!!colname))),
-                sliderInput(IDflt, paste('Fliter less than', colname, sep = ' '),
-                            min = min(rdata_set %>% select(!!colname)), 
-                            max = max(rdata_set %>% select(!!colname)), 
-                            value = max(rdata_set %>% select(!!colname))),
-                actionButton(IDslh, paste('Sort low to high', colname, sep = ' ')),
-                actionButton(IDshl, paste('Sort high to low', colname, sep = ' ')),
-                br(),
-                hr()
-              )
-            })
-            search_settings <<- c(search_settings, IDs, IDfgt, IDflt, IDslh, IDshl)
-            #print(search_settings %>% list_merge(IDs, IDfgt, IDflt, IDslh, IDshl))
-            # store search setting data
-            #print(search_settings %>% 
-            #  list_merge(list(IDs, IDfgt, IDflt, IDslh, IDshl)))
-            #print(search_settings)
-          }
-          return(UI_component)
-        }
-        print('tr 7')
-        return(
-          lapply(, create_UI_component)
-        )
-        
-      })
-    }
+  # sidebar_to_explore2 = 
+  #   function(x) {
+  #     #print(x)
+  #     renderUI({
+  #       print('tr 6')
+  #       req(length(rdata_select_prepared) > 0)
+  #       #req(input$update_select)
+  #       #req(input$update_select)
+  #       create_UI_component = function(x) {
+  #         colname = x[1]
+  #         type = x[2]
+  #         ID = paste(colname, type, 'search', sep = '_')
+  #         
+  #         if(type == "character") {
+  #           # UI box with selectInput
+  #           UI_component = renderUI({
+  #             tagList(
+  #               #renderPrint({print(colname)}),
+  #               selectInput(ID, paste('Search', colname, sep = ' '),
+  #                           choices = unique(rdata_set %>% select(!!colname))),
+  #               br(),
+  #               hr()
+  #             )
+  #           })
+  #           
+  #           # store search setting data
+  #           search_settings <<-  c(search_settings, ID)
+  #           #print(search_settings %>% list_merge(ID))
+  #           #print(ID)
+  #         } else if(type == "numeric") {
+  #           # UI box with filter (two sliders) and sort (low high, high low)
+  #           IDs = paste(colname, type, 'search', sep = '_')
+  #           IDfgt = paste(colname, type, 'f_gt', sep = '_')
+  #           IDflt = paste(colname, type, 'f_lt', sep = '_')
+  #           IDslh = paste(colname, type, 's_lh', sep = '_')
+  #           IDshl = paste(colname, type, 's_hl', sep = '_')
+  #           
+  #           UI_component = renderUI({
+  #             tagList(
+  #               #renderPrint({print(colname)}),
+  #               selectInput(IDs, paste('Search', colname, sep = ' '),
+  #                           choices = unique(rdata_set %>% select(!!colname))),
+  #               sliderInput(IDfgt, paste('Fliter greater than', colname, sep = ' '),
+  #                           min = min(rdata_set %>% select(!!colname)), 
+  #                           max = max(rdata_set %>% select(!!colname)), 
+  #                           value = min(rdata_set %>% select(!!colname))),
+  #               sliderInput(IDflt, paste('Fliter less than', colname, sep = ' '),
+  #                           min = min(rdata_set %>% select(!!colname)), 
+  #                           max = max(rdata_set %>% select(!!colname)), 
+  #                           value = max(rdata_set %>% select(!!colname))),
+  #               actionButton(IDslh, paste('Sort low to high', colname, sep = ' ')),
+  #               actionButton(IDshl, paste('Sort high to low', colname, sep = ' ')),
+  #               br(),
+  #               hr()
+  #             )
+  #           })
+  #           search_settings <<- c(search_settings, IDs, IDfgt, IDflt, IDslh, IDshl)
+  #           #print(search_settings %>% list_merge(IDs, IDfgt, IDflt, IDslh, IDshl))
+  #           # store search setting data
+  #           #print(search_settings %>% 
+  #           #  list_merge(list(IDs, IDfgt, IDflt, IDslh, IDshl)))
+  #           #print(search_settings)
+  #         }
+  #         return(UI_component)
+  #       }
+  #       print('tr 7')
+  #       return(
+  #         lapply(, create_UI_component)
+  #       )
+  #       
+  #     })
+  #   }
   
    
   observeEvent(input$update_select, {
@@ -457,8 +439,19 @@ server = function(input, output, session) {
     
     update_select_helper()
     proc_selected()
-    output$sidebar_to_explore2 = sidebar_to_explore2(reactive(input$update_select_w_options))
+    #output$sidebar_to_explore2 = sidebar_to_explore2(reactive(input$update_select_w_options))
     
+  })
+  
+  observeEvent(input$update_select_w_options, {
+    req(input$update_select)
+    print('beyonce 0.5')
+    #req()
+    #input$update_select
+    #input$update_select_w_options
+    print('beyonce')
+    output$sidebar_to_explore2 = sidebar_to_explore2(reactive(input$update_select_w_options))
+    print('gaga')
   })
   
   # observeEvent(input$update_select_w_options {
@@ -486,7 +479,6 @@ server = function(input, output, session) {
 
   
   filtering = function() {
-    # remember to isolate reactive things
     print('tr 11')
     rdata_set_cumulate = rdata_set
     print(head(rdata_set_cumulate))
@@ -494,17 +486,17 @@ server = function(input, output, session) {
     print(search_settings_)
     for (ipv in 1:length(search_settings_)) {
       current_ = search_settings_[[ipv]]
-      column_ = sym(str_extract(current_, '[^_]+'))
+      column_ = sym(word(gsub('_', ' ', current_), -1))
       input_ = input[[ search_settings_[[ipv]] ]]
-      if(grep('search', current_)) {
+      if(grep('Search', current_)) {
         rdata_set_cumulate = rdata_set_cumulate %>% filter(!!column_ == !!input_)
-      } else if (grep('f_gt', current_)) {
+      } else if (grep('Filter_greater_than', current_)) {
         rdata_set_cumulate = rdata_set_cumulate %>% filter(!!column_ >= !!input_)
-      } else if (grep('f_lt', current_)) {
+      } else if (grep('Filter_less_than', current_)) {
         rdata_set_cumulate = rdata_set_cumulate %>% filter(!!column_ <= !!input_)
-      } else if (grep('s_lh', current_)) {
+      } else if (grep('Sort_low_to_high', current_)) {
         rdata_set_cumulate = rdata_set_cumulate %>% arrange(!!input_)
-      } else if (grep('s_hl', current_)) {
+      } else if (grep('Sort_high_to_low', current_)) {
         rdata_set_cumulate = rdata_set_cumulate %>% arrange(desc(!!input_))
       }
     }
