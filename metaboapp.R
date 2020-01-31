@@ -49,39 +49,72 @@ ui = #secure_app(head_auth = tags$script(inactivity),
                     headerPanel(h3("MetaboView: metabolite results viewer", style="color: #02169B; font-weight: bold;")),
                     div(style = "height:72px; background-color: #F1F1F1;") 
                   ),
-                  br(), br(), br(), 
+                  br(),  
+                  fluidRow(
+                    column(width = 7,
+                           wellPanel(
+                             h3(tags$b("Instructions")),
+                             hr(),
+                             h4("This app works sequentially; stages have to be followed in the order provided. If you would like to start over, 
+                                restart the app. If you are searching and sorting on a set of variables and would like to change options, always
+                                return to Step 3."),
+                             h4(""),
+                             h4("")
+                           )
+                    )
+                  ),
+                  br(),  
                   sidebarPanel(width = 4,
-                    fileInput("data_set", "Choose CSV data set",
+                               wellPanel(
+                                 h4("Step 1: "),
+                                 h5("Select the CSV plot attributes data set from your files."),
+                                 fileInput("data_set", "Choose CSV data set",
                               multiple = TRUE,
                               accept = c("text/csv",
                                          "text/comma-separated-values,text/plain",
-                                         ".csv")),
-                    actionButton('view_options', 'View options'),
-                    shinyDirButton('dir', label='File select', title='Select Metabolite image directory'),
-                    verbatimTextOutput("dir", placeholder = TRUE),
-                    checkboxGroupInput('select_vars', label = 'Select variables on which to explore metabolites',
+                                         ".csv"))
+                               ),
+                               wellPanel(
+                                 h4("Step 2: "),
+                                 h5("Select the directy to the plot jpeg files. Use the black arrows in the left window to navigate your file system,
+                                    and then select the final directory with your curser (it should highligh blue). The right window should display
+                                    the list of plots."),
+                                 shinyDirButton('dir', label='File select', title='Select Metabolite image directory'),
+                                textOutput("mdat_path_display")
+                               ),
+                               wellPanel(
+                                 h4("Step 3: "),
+                                 h5("Click 'View options' to display variables which you can dynamically explore. Then, make your selections using the 
+                                    check boxes."),
+                                 actionButton('view_options', 'View options'),
+                                 h5(''),
+                                 h5(''),
+                                 checkboxGroupInput('select_vars', label = 'Select variables on which to explore metabolites',
                                        choices = c()),
-                    actionButton('update_select', 'Update selected variable'),
-                    br(),
-                    br(),
-                    checkboxGroupInput('select_sorting_options', label = 'Select sorting options',
+                                 actionButton('update_select', 'Update selected variable')
+                               ),
+                               wellPanel(
+                                 h4("Step 4: "),
+                                 h5("Select all options you would like to use in the sorting, filtering, and searching process."),
+                                 checkboxGroupInput('select_sorting_options', label = 'Select sorting options',
                                        choices = c()),
-                    actionButton('update_select_w_options', 'Update with options'),
-                    br(),
-                    br(),
-                    uiOutput('sidebar_to_explore2'),
-                    br(),
-                    hr(),
-                    actionButton('run', 'Run'),
-                    br(),
-                    hr(),
-                    actionButton('data_preview', 'Preview attributes data')
-                    #selectInput('browse_metabo', 'Select individual metabolite', rdata_set$data$Metabolite)
-                    # uiOutput('metabo1')
+                    actionButton('update_select_w_options', 'Update with options')
+                               ),
+                               wellPanel(
+                                 h4("Step 5: "),
+                                 h5("Click 'Run' to generate a new set of results:"),
+                                 uiOutput('sidebar_to_explore2'),
+                                 actionButton('run', 'Run')
+                               ),
+                               wellPanel(
+                                 h4('Extra: '),
+                                 h5("You can print the complete data set to sort and search: "),
+                                 actionButton('data_preview', 'Preview attributes data')
+                               )
                   ),
                   mainPanel(width = 8,
-                    uiOutput('imageUI'),
-                    dataTableOutput('contents')
+                    dataTableOutput('contents'),       
+                    uiOutput('imageUI')
                   )
                   
                 )#)
@@ -96,8 +129,17 @@ server = function(input, output, session) {
                  filetypes = c('', 'jpg'))
   
   mdat_path <- reactive({
-    #print('tr 1')
-    return(parseDirPath(volumes, isolate(input$dir)))
+    return(parseDirPath(volumes, input$dir))
+  })
+  
+  output$mdat_path_display = renderText({
+    req(input$dir)
+    #mdat_path()
+    dir_ = unlist(input$dir)
+    dir2_ = dir_[-length(dir_)]
+    dir_start_ = dir_[length(dir_)]
+    dir_new_ = c(dir_start_, dir2_)
+    return(paste0(dir_new_, sep = '/'))
   })
   
   observeEvent(input$data_set, {
@@ -293,6 +335,7 @@ server = function(input, output, session) {
   
   observeEvent(input$update_select_w_options, {
     req(input$update_select)
+    rdata_set_cumulate <<- rdata_set
     #print('beyonce 0.5')
     #print('beyonce')
     output$sidebar_to_explore2 = sidebar_to_explore2(reactive(input$update_select_w_options))
@@ -334,9 +377,9 @@ server = function(input, output, session) {
       } else if (grepl('Filter_less_than', current_)) {
         rdata_set_cumulate = rdata_set_cumulate %>% filter(!!column_ <= !!input_)
       } else if (grepl('Sort_low_to_high', current_)) {
-        rdata_set_cumulate = rdata_set_cumulate %>% arrange(!!input_)
+        rdata_set_cumulate = rdata_set_cumulate %>% arrange(!!column_)
       } else if (grepl('Sort_high_to_low', current_)) {
-        rdata_set_cumulate = rdata_set_cumulate %>% arrange(desc(!!input_))
+        rdata_set_cumulate = rdata_set_cumulate %>% arrange(desc(!!column_))
       }
     }
     file_list <<- rdata_set_cumulate$Filename
@@ -379,3 +422,5 @@ server = function(input, output, session) {
 }
 
 shinyApp(ui = ui, server = server)
+
+
