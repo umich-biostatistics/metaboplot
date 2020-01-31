@@ -96,26 +96,26 @@ server = function(input, output, session) {
                  filetypes = c('', 'jpg'))
   
   mdat_path <- reactive({
-    print('tr 1')
+    #print('tr 1')
     return(parseDirPath(volumes, isolate(input$dir)))
   })
   
   observeEvent(input$data_set, {
-    print('tr 2')
+    #print('tr 2')
     rdata_set <<- read_csv(input$data_set$datapath)
   })
   
   output$contents = 
     renderDataTable({
-      print('tr 3')
+      #print('tr 3')
       req(rdata_set)
       return(rdata_set)
     })
   
   observeEvent(input$view_options, {
-    print('tr 4')
+    #print('tr 4')
     req(nrow(rdata_set) > 0)
-    print('made it here')
+    #print('made it here')
     req(input$data_set)
     x = colnames(rdata_set)
     updateCheckboxGroupInput(session, 'select_vars',
@@ -126,7 +126,7 @@ server = function(input, output, session) {
   })
   
   update_select_helper = reactive({
-    print('tr 4')
+    #print('tr 4')
     input$update_select
     vars = isolate(input$select_vars)
     sel_data = rdata_set %>% select(!!vars)
@@ -138,16 +138,16 @@ server = function(input, output, session) {
   })
   
   proc_selected = reactive({
-    print('tr 5')
+    #print('tr 5')
     input$update_select
     req('tbl_df' %in% class(rdata_set_select)) 
     rdata_select_prepared <<- as_tibble(t(rdata_set_select))
-    print(rdata_select_prepared)
-    print('tr 5.5')
+    #print(rdata_select_prepared)
+    #print('tr 5.5')
     var_names_ = as.character(rdata_select_prepared[1,])
-    print(var_names_)
+    #print(var_names_)
     types_ = as.character(rdata_select_prepared[2,])
-    print(types_ )
+    #print(types_ )
     
     type_options_ = lapply(seq_along(var_names_), function(i) {
       if(types_[i] == 'numeric') {
@@ -162,8 +162,8 @@ server = function(input, output, session) {
         xz <<- c(xz, paste0('Search ', var_names_[i], sep = ''))
       }
     })
-    print('Print xz: ')
-    print(xz)
+    #print('Print xz: ')
+    #print(xz)
     updateCheckboxGroupInput(session, 'select_sorting_options',
                              label = 'Select search and sort options for each variable',
                              choices = xz,
@@ -178,12 +178,14 @@ server = function(input, output, session) {
           # use grep to find each type
           colname = word(x, -1)
           ID = gsub(' ', '_', x)
+          #print(paste0('NEW ID ************************************************** = ', ID))
           search_settings <<-  c(search_settings, ID)
           if(grepl('Search', x)){ #} & (input[[ID]])) { #################################################################################################
             return(renderUI({
               tagList(
                 selectInput(ID, paste('Search', colname, sep = ' '),
                             choices = unique(rdata_set %>% select(!!colname))),
+                #print(paste0('New select input created: ', ID)),
                 br(),
                 hr()
               )
@@ -195,6 +197,7 @@ server = function(input, output, session) {
                         min = min(rdata_set %>% select(!!colname)), 
                         max = max(rdata_set %>% select(!!colname)), 
                         value = min(rdata_set %>% select(!!colname))),
+                #print(paste0('New slider input created: ', ID)),
                 br(),
                 hr()
               )
@@ -207,6 +210,7 @@ server = function(input, output, session) {
                             min = min(rdata_set %>% select(!!colname)), 
                             max = max(rdata_set %>% select(!!colname)), 
                             value = max(rdata_set %>% select(!!colname))),
+                #print(paste0('New slider input created: ', ID)),
                 br(),
                 hr()
               )
@@ -216,6 +220,7 @@ server = function(input, output, session) {
             return(renderUI({
               tagList(
                 actionButton(ID, paste('Sort low to high', colname, sep = ' ')),
+                #print(paste0('New action input created: ', ID)),
                 br(),
                 hr()
               )
@@ -225,6 +230,7 @@ server = function(input, output, session) {
             return(renderUI({
               tagList(
                 actionButton(ID, paste('Sort high to low', colname, sep = ' ')),
+                #print(paste0('New action input created: ', ID)),
                 br(),
                 hr()
               )
@@ -234,26 +240,51 @@ server = function(input, output, session) {
             return()
           }
         }
-        print('tr 6')
-        print(xz)
+        #print('tr 6')
+        #print(xz)
         #print(xz_select)
-        xz_select = lapply(xz, function(x) {
+        # xz_select = lapply(xz, function(x) {
+        #   #ID = gsub(' ', '_', x)
+        #   #print('ID:')
+        #   #print(ID)
+        #   input_ = input[[gsub(' ', '_', x)]]
+        #   #print('Printing input:')
+        #   #print(input_)
+        #   #print(gsub(' ', '_', x))
+        #   if((!is.na(input_)) & (!is.null(input_)) & (input_ == TRUE)) {
+        #     return(x)
+        #   } else { return(NA) }
+        # })
+        #print('XZ here: ')
+        #print(xz)
+        # xz_select = xz_select[complete.cases(xz_select)]
+        # print('XZ select:')
+        # print(xz_select)
+        #print('TRIP 20')
+        vars_ = isolate(input$select_sorting_options)
+        #print(vars_)
+        #xz_format_ = gsub('_', ' ', vars_)
+        #print(xz_format_)
+        
+        xz_select = sapply(xz, function(x) {
           #ID = gsub(' ', '_', x)
           #print('ID:')
           #print(ID)
-          input_ = input[[xz]]
-          print(input_)
-          if((!is.na(input_)) & (input_ == TRUE)) {
-            return(x)
-          } else { return(NA) }
+          if(x %in% vars_) {
+            return(TRUE)
+          } else {
+            FALSE
+          }
         })
-        xz_select = xz_select[complete.cases(xz_select)]
+        #print(xz_select)
+        xz_select = xz[xz_select]
+        #print(paste0('HERE IS XZ SELECT ************************* ==== ',xz_select ))
         lapply(xz_select, create_UI_component)
       })
     }
   
   observeEvent(input$update_select, {
-    print('tr 8')
+    #print('tr 8')
     search_settings <<- list()
     xz <<- c()
     update_select_helper()
@@ -262,45 +293,49 @@ server = function(input, output, session) {
   
   observeEvent(input$update_select_w_options, {
     req(input$update_select)
-    print('beyonce 0.5')
-    print('beyonce')
+    #print('beyonce 0.5')
+    #print('beyonce')
     output$sidebar_to_explore2 = sidebar_to_explore2(reactive(input$update_select_w_options))
-    print('gaga')
+    #print('gaga')
   })
   
   get_data_on_click = 
     eventReactive(input$data_preview, {
-      print('tr 9')
+      #print('tr 9')
       return(rdata_set)
     })
   
   output$contents = 
     renderDataTable({
-      print('tr 10')
+      #print('tr 10')
       return(get_data_on_click())
     }, options = list(pageLength = 20))
 
   
   filtering = function() {
-    print('tr 11')
+    #print('tr 11')
     rdata_set_cumulate = rdata_set
-    print(head(rdata_set_cumulate))
+    #print(head(rdata_set_cumulate))
     search_settings_ = search_settings
-    print(search_settings_)
+    #print(search_settings_)
     for (ipv in 1:length(search_settings_)) {
       current_ = search_settings_[[ipv]]
+      print('current:')
+      print(current_)
       column_ = sym(word(gsub('_', ' ', current_), -1))
       input_ = input[[ search_settings_[[ipv]] ]]
+      print('input:')
+      print(input_)
       if(is.null(input_) | (input_ == FALSE)) { next }
-      if(grep('Search', current_)) {
+      if(grepl('Search', current_)) {
         rdata_set_cumulate = rdata_set_cumulate %>% filter(!!column_ == !!input_)
-      } else if (grep('Filter_greater_than', current_)) {
+      } else if (grepl('Filter_greater_than', current_)) {
         rdata_set_cumulate = rdata_set_cumulate %>% filter(!!column_ >= !!input_)
-      } else if (grep('Filter_less_than', current_)) {
+      } else if (grepl('Filter_less_than', current_)) {
         rdata_set_cumulate = rdata_set_cumulate %>% filter(!!column_ <= !!input_)
-      } else if (grep('Sort_low_to_high', current_)) {
+      } else if (grepl('Sort_low_to_high', current_)) {
         rdata_set_cumulate = rdata_set_cumulate %>% arrange(!!input_)
-      } else if (grep('Sort_high_to_low', current_)) {
+      } else if (grepl('Sort_high_to_low', current_)) {
         rdata_set_cumulate = rdata_set_cumulate %>% arrange(desc(!!input_))
       }
     }
@@ -308,10 +343,11 @@ server = function(input, output, session) {
   }
   
   core = reactive({
-    print('tr 12')
+    #print('tr 12')
     req(input$run)
     input$run
     isolate(filtering())
+    rdata_set_cumulate <<- rdata_set
     lapply(seq_along(file_list), function(i) {
       output[[paste0("images", i)]] <- renderImage({
         print(paste(isolate(mdat_path()), file_list[i], sep = '/'))
@@ -323,12 +359,13 @@ server = function(input, output, session) {
         )
       }, deleteFile = FALSE)
     })
+    
   })
   
   output$imageUI <- renderUI({
     core()
-    print('tr 13')
-    print('core run complete')
+    #print('tr 13')
+    #print('core run complete')
     return(
       flowLayout(
         lapply(seq_along(file_list), function(i) {
