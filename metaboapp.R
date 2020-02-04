@@ -1,5 +1,4 @@
 
-
 library(shiny)
 library(shinyFiles)
 library(shinymanager)
@@ -8,10 +7,15 @@ library(tidyverse)
 library(DT)
 library(purrr)
 library(magick)
+library(stringr)
 
 search_settings = list()
-
 file_list = list()
+rdata_set_cumulate = data.frame()
+rdata_set_select = data.frame()
+rdata_select_prepared = data.frame()
+rdata_set = data.frame()
+xz = c()
 
 inactivity <- "function idleTimer() {
 var t = setTimeout(logout, 120000);
@@ -32,12 +36,9 @@ t = setTimeout(logout, 120000);  // time is in milliseconds (1000 is 1 second)
 }
 idleTimer();"
 
-
-# data.frame with credentials info
 credentials = data.frame(
   user = c("1"),
   password = c("1"),
-  # comment = c("alsace", "auvergne", "bretagne"), %>% 
   stringsAsFactors = FALSE
 )
 
@@ -47,34 +48,72 @@ ui = #secure_app(head_auth = tags$script(inactivity),
                     headerPanel(h3("MetaboView: metabolite results viewer", style="color: #02169B; font-weight: bold;")),
                     div(style = "height:72px; background-color: #F1F1F1;") 
                   ),
-                  br(), br(), br(), 
-                  sidebarPanel(
-                    fileInput("data_set", "Choose CSV data set",
-                              multiple = TRUE,
-                              accept = c("text/csv",
-                                         "text/comma-separated-values,text/plain",
-                                         ".csv")),
-                    actionButton('view_options', 'View options'),
-                    shinyDirButton('dir', label='File select', title='Select Metabolite image directory'),
-                    verbatimTextOutput("dir", placeholder = TRUE),
-                    checkboxGroupInput('select_vars', label = 'Select variables on which to explore metabolites',
-                                       choices = c()),
-                    actionButton('update_select', 'Update selected variable'),
-                    br(),
-                    br(),
-                    uiOutput('sidebar_to_explore'),
-                    br(),
-                    hr(),
-                    actionButton('run', 'Run'),
-                    br(),
-                    hr(),
-                    actionButton('data_preview', 'Preview attributes data')
-                    #selectInput('browse_metabo', 'Select individual metabolite', rdata_set$data$Metabolite)
-                    # uiOutput('metabo1')
+                  br(),  
+                  fluidRow(
+                    column(width = 7,
+                           wellPanel(
+                             h3(tags$b("Instructions")),
+                             hr(),
+                             h4("This app works sequentially; stages have to be followed in the order provided. If you would like to start over, 
+                                restart the app. If you are searching and sorting on a set of variables and would like to change options, always
+                                return to Step 3."),
+                             h4(""),
+                             h4("")
+                           )
+                    )
                   ),
-                  mainPanel(
-                    uiOutput('imageUI'),
-                    dataTableOutput('contents')
+                  br(),  
+                  sidebarPanel(width = 4,
+                               wellPanel(
+                                 h4("Step 1: "),
+                                 h5("Select the CSV plot attributes data set from your files."),
+                                 fileInput("data_set", "Choose CSV data set",
+                                            multiple = TRUE,
+                                 accept = c("text/csv",
+                                            "text/comma-separated-values,text/plain",
+                                            ".csv"))
+                                 ),
+                               wellPanel(
+                                 h4("Step 2: "),
+                                 h5("Select the directy to the plot jpeg files. Use the black arrows in the left window to navigate your file system,
+                                    and then select the final directory with your curser (it should highligh blue). The right window should display
+                                    the list of plots."),
+                                 shinyDirButton('dir', label='File select', title='Select Metabolite image directory'),
+                                textOutput("mdat_path_display")
+                               ),
+                               wellPanel(
+                                 h4("Step 3: "),
+                                 h5("Click 'View options' to display variables which you can dynamically explore. Then, make your selections using the 
+                                    check boxes."),
+                                 actionButton('view_options', 'View options'),
+                                 h5(''),
+                                 h5(''),
+                                 checkboxGroupInput('select_vars', label = 'Select variables on which to explore metabolites',
+                                       choices = c()),
+                                 actionButton('update_select', 'Update selected variable')
+                               ),
+                               wellPanel(
+                                 h4("Step 4: "),
+                                 h5("Select all options you would like to use in the sorting, filtering, and searching process."),
+                                 checkboxGroupInput('select_sorting_options', label = 'Select sorting options',
+                                       choices = c()),
+                                 actionButton('update_select_w_options', 'Update with options')
+                               ),
+                               wellPanel(
+                                 h4("Step 5: "),
+                                 h5("Click 'Run' to generate a new set of results:"),
+                                 uiOutput('sidebar_to_explore2'),
+                                 actionButton('run', 'Run')
+                               ),
+                               wellPanel(
+                                 h4('Extra: '),
+                                 h5("You can print the complete data set to sort and search: "),
+                                 actionButton('data_preview', 'Preview attributes data')
+                               )
+                  ),
+                  mainPanel(width = 8,
+                    dataTableOutput('contents'),       
+                    uiOutput('imageUI')
                   )
                   
                 )#)
@@ -85,366 +124,252 @@ server = function(input, output, session) {
   
   volumes <- getVolumes()
   
-  shinyDirChoose(input, 'dir', roots = volumes, session = session, 
-                 filetypes = c('', 'jpg'))
+  shinyDirChoose(
+    input,
+    'dir',
+    roots = volumes,
+    session = session,
+    filetypes = c('', 'jpg')
+  )
   
   mdat_path <- reactive({
-    #print(parseDirPath(volumes, input$directory))
     return(parseDirPath(volumes, input$dir))
   })
   
-  observe({
-    if(!is.null(mdat_path())) {
-      path_to_images$data = mdat_path()
-      all_files = list.files(path_to_images$data)
-      jpg_files$data = all_files[all_files %>% grepl(pattern = "*.jpg")]
-    }
-    #path_to_images = parseDirPath(volumes, input$directory)
-    #renderImage()
-    #renderImage#######################################################################
+  output$mdat_path_display = renderText({
+    req(input$dir)
+    dir_ = unlist(input$dir)
+    dir2_ = dir_[-length(dir_)]
+    dir_start_ = dir_[length(dir_)]
+    dir_new_ = c(dir_start_, dir2_)
+    return(paste0(dir_new_, sep = '/'))
   })
   
-  path_to_images = 
-    reactiveValues(
-      'data' = c()
-    )
-  
-  # store data set
-  rdata_set = 
-    reactiveValues(
-      'data' = data.frame()
-    )
-  
-  rdata_set_select = 
-    reactiveValues(
-      'data' = data.frame()
-    )
-  
-  rdata_select_prepared = 
-    reactiveValues(
-      'data' = data.frame()
-    )
-  
-  jpg_files = 
-    reactiveValues(
-      'data' = data.frame()
-    )
-  
-  
-  rdata_set_cumul = 
-    reactiveValues(
-      'data' = data.frame()
-    )
-  
-  # search_settings = 
-  #   reactiveValues(
-  #     'data' = list()
-  #   )
-  
-  # read in data set
   observeEvent(input$data_set, {
-    rdata_set$data = read_csv(input$data_set$datapath)
+    rdata_set <<- read_csv(input$data_set$datapath)
   })
   
-  output$contents = 
+  output$contents =
     renderDataTable({
       req(rdata_set)
-      return(rdata_set$data)
+      return(rdata_set)
     })
   
-  # observeEvent(input$update_select, {
-  #   rdata_set_select$data = rdata_set$data %>% select(eval(input$update_select))
-  # })
-  
   observeEvent(input$view_options, {
-    req(nrow(rdata_set$data) > 0)
+    req(nrow(rdata_set) > 0)
     req(input$data_set)
-    #print(rdata_set$data)
-    x = colnames(rdata_set$data)
-    #print(x)
-    updateCheckboxGroupInput(session, 'select_vars',
-                             label = 'Select variables on which to explore metabolites',
-                             choices = x,
-                             selected = c()
+    x = colnames(rdata_set)
+    updateCheckboxGroupInput(
+      session,
+      'select_vars',
+      label = 'Select variables on which to explore metabolites',
+      choices = x,
+      selected = c()
     )
   })
   
-  observeEvent(input$update_select, {
-    vars = input$select_vars
-    sel_data = rdata_set$data %>% select(!!vars)
-    var_type = 
-      (sel_data %>% 
-         dplyr::summarise_all(class) %>% 
+  update_select_helper = reactive({
+    input$update_select
+    vars = isolate(input$select_vars)
+    sel_data = rdata_set %>% select(!!vars)
+    var_type =
+      (sel_data %>%
+         dplyr::summarise_all(class) %>%
          tidyr::gather(variable, class))
-    rdata_set_select$data = var_type
+    rdata_set_select <<- var_type
   })
   
-  observeEvent(rdata_set_select$data, {
-    req('tbl_df' %in% class(rdata_set_select$data)) 
-    rdata_select_prepared$data = as_tibble(t(rdata_set_select$data))
+  proc_selected = reactive({
+    input$update_select
+    req('tbl_df' %in% class(rdata_set_select))
+    rdata_select_prepared <<- as_tibble(t(rdata_set_select))
+    var_names_ = as.character(rdata_select_prepared[1,])
+    types_ = as.character(rdata_select_prepared[2,])
+    type_options_ = lapply(seq_along(var_names_), function(i) {
+      if (types_[i] == 'numeric') {
+        xz <<- c(
+          xz,
+          paste0('Search ', var_names_[i], sep = ''),
+          paste0('Filter greater than ', var_names_[i], sep = ''),
+          paste0('Filter less than ', var_names_[i], sep = ''),
+          paste0('Sort low to high ', var_names_[i], sep = ''),
+          paste0('Sort high to low ', var_names_[i], sep = '')
+        )
+      } else if (types_[i] == 'character') {
+        xz <<- c(xz, paste0('Search ', var_names_[i], sep = ''))
+      }
+    })
+    
+    updateCheckboxGroupInput(
+      session,
+      'select_sorting_options',
+      label = 'Select search and sort options for each variable',
+      choices = xz,
+      selected = c()
+    )
   })
   
-  # observeEvent(jpg_files$data, {
-  #   req(length(jpg_files$data > 1))
-  #   # apply read across all files that we need to load in, 
-  #   # only load the ones we need to use (based on settings)
-  #   
-  # })
-  
-  
-  
-  sidebar_to_explore = 
-    function(x) {
-      #print(x)
+  sidebar_to_explore2 = 
+    function(reactor) {
       renderUI({
-        req(length(rdata_select_prepared$data) > 0)
-        #req(input$update_select)
-        #req(input$update_select)
         create_UI_component = function(x) {
-          colname = x[1]
-          type = x[2]
-          ID = paste(colname, type, 'search', sep = '_')
-          
-          if(type == "character") {
-            # UI box with selectInput
-            UI_component = renderUI({
+          colname = word(x, -1)
+          ID = gsub(' ', '_', x)
+          search_settings <<-  c(search_settings, ID)
+          if(grepl('Search', x)){
+            return(renderUI({
               tagList(
-                #renderPrint({print(colname)}),
                 selectInput(ID, paste('Search', colname, sep = ' '),
-                            choices = unique(rdata_set$data %>% select(!!colname))),
+                            choices = unique(rdata_set %>% select(!!colname))),
                 br(),
                 hr()
               )
-            })
-            
-            # store search setting data
-            search_settings <<-  c(search_settings, ID)
-            #print(search_settings %>% list_merge(ID))
-            #print(ID)
-          } else if(type == "numeric") {
-            # UI box with filter (two sliders) and sort (low high, high low)
-            IDs = paste(colname, type, 'search', sep = '_')
-            IDfgt = paste(colname, type, 'f_gt', sep = '_')
-            IDflt = paste(colname, type, 'f_lt', sep = '_')
-            IDslh = paste(colname, type, 's_lh', sep = '_')
-            IDshl = paste(colname, type, 's_hl', sep = '_')
-            
-            UI_component = renderUI({
+            }))
+          } else if(grepl('Filter greater than', x)) {
+            return(renderUI({
               tagList(
-                #renderPrint({print(colname)}),
-                selectInput(IDs, paste('Search', colname, sep = ' '),
-                            choices = unique(rdata_set$data %>% select(!!colname))),
-                sliderInput(IDfgt, paste('Fliter greater than', colname, sep = ' '),
-                            min = min(rdata_set$data %>% select(!!colname)), 
-                            max = max(rdata_set$data %>% select(!!colname)), 
-                            value = min(rdata_set$data %>% select(!!colname))),
-                sliderInput(IDflt, paste('Fliter less than', colname, sep = ' '),
-                            min = min(rdata_set$data %>% select(!!colname)), 
-                            max = max(rdata_set$data %>% select(!!colname)), 
-                            value = max(rdata_set$data %>% select(!!colname))),
-                actionButton(IDslh, paste('Sort low to high', colname, sep = ' ')),
-                actionButton(IDshl, paste('Sort high to low', colname, sep = ' ')),
+                sliderInput(ID, paste('Fliter greater than', colname, sep = ' '),
+                        min = min(rdata_set %>% select(!!colname)), 
+                        max = max(rdata_set %>% select(!!colname)), 
+                        value = min(rdata_set %>% select(!!colname))),
                 br(),
                 hr()
               )
             })
-            search_settings <<- c(search_settings, IDs, IDfgt, IDflt, IDslh, IDshl)
-            #print(search_settings %>% list_merge(IDs, IDfgt, IDflt, IDslh, IDshl))
-            # store search setting data
-            #print(search_settings %>% 
-            #  list_merge(list(IDs, IDfgt, IDflt, IDslh, IDshl)))
-            #print(search_settings)
+            )
+          } else if(grepl('Filter less than', x)) {
+            return(renderUI({
+              tagList(
+                sliderInput(ID, paste('Filter less than', colname, sep = ' '),
+                            min = min(rdata_set %>% select(!!colname)), 
+                            max = max(rdata_set %>% select(!!colname)), 
+                            value = max(rdata_set %>% select(!!colname))),
+                br(),
+                hr()
+              )
+            })
+            )
+          } else if(grepl('Sort low to high', x)) {
+            return(renderUI({
+              tagList(
+                actionButton(ID, paste('Sort low to high', colname, sep = ' ')),
+                br(),
+                hr()
+              )
+            })
+            )
+          } else if(grepl('Sort high to low', x)) {
+            return(renderUI({
+              tagList(
+                actionButton(ID, paste('Sort high to low', colname, sep = ' ')),
+                br(),
+                hr()
+              )
+            })
+            )
+          } else {
+            return()
           }
-          return(UI_component)
         }
         
-        return(
-          lapply(rdata_select_prepared$data, create_UI_component)
-        )
+        vars_ = isolate(input$select_sorting_options)
         
+        xz_select = sapply(xz, function(x) {
+          if(x %in% vars_) {
+            return(TRUE)
+          } else {
+            FALSE
+          }
+        })
+        xz_select = xz[xz_select]
+        lapply(xz_select, create_UI_component)
       })
     }
   
-   
   observeEvent(input$update_select, {
-    output$sidebar_to_explore = sidebar_to_explore(reactive(input$update_select))
+    search_settings <<- list()
+    xz <<- c()
+    update_select_helper()
+    proc_selected()
   })
-    
   
-  #output$sidebar_to_explore = sidebar_to_explore
-  
-  # eventReactive(sidebar_to_explore, {
-  #   rdata_set$data 
-  # }) ################################################################################## note this chunk
+  observeEvent(input$update_select_w_options, {
+    req(input$update_select)
+    rdata_set_cumulate <<- rdata_set
+    output$sidebar_to_explore2 = sidebar_to_explore2(reactive(input$update_select_w_options))
+  })
   
   get_data_on_click = 
     eventReactive(input$data_preview, {
-      return(rdata_set$data)
+      return(rdata_set)
     })
   
   output$contents = 
     renderDataTable({
       return(get_data_on_click())
     }, options = list(pageLength = 20))
+
   
-  
-  #results = function() {
-    # observeEvent(input$run, {
-    #   # on run click, extract access inputs and based on name pattern
-    #   # do the right data processing to the data set
-    #   # when to go from rdata_set to rdata_set_select
-    #   rdata_set_select$data = rdata_set$data
-    #   rdata_set$data # original
-    #   data_names = colnames(rdata_set$data)
-    #   search_settings_ = search_settings
-    #   rdata_set_select$data # selected and whatever else, filter
-    #   for (ipv in 1:length(search_settings_)) {
-    #     current_ = search_settings_[[ipv]]
-    #     column_ = str_extract(current_, '[^_]+')
-    #     input_ = input[[ search_settings_[[ipv]] ]]
-    #     if(grep('search', current_)) {
-    #       rdata_set_select$data = rdata_set_select$data %>% filter(sym(!!column_) == !!current_)
-    #     } else if (grep('f_gt', current_)) {
-    #       rdata_set_select$data = rdata_set_select$data %>% filter(sym(!!column_) >= !!current_)
-    #     } else if (grep('f_lt', current_)) {
-    #       rdata_set_select$data = rdata_set_select$data %>% filter(sym(!!column_) <= !!current_)
-    #     } else if (grep('s_lh', current_)) {
-    #       rdata_set_select$data = rdata_set_select$data %>% arrange(sym(!!column_))
-    #     } else if (grep('s_hl', current_)) {
-    #       rdata_set_select$data = rdata_set_select$data %>% arrange(desc(sym(!!column_)))
-    #     }
-    #     # read in jpg files and print them!
-    #     
-    #     return(
-    #       lapply(rdata_set_select$data$Filename, function(x) {
-    #         print( paste(path_to_images$data, '/', x))
-    #         paste(path_to_images$data, '/', x)
-    #       })
-    #     )
-    #   }
-    # })
-  #}
-  
-  # Do the renderImage calls
-  
-  csearch = function(x) {
-    
-    req(input$run)
-    
-    rdata_set_cumul$data = rdata_set$data
-    #rdata_set$data # original
-    #data_names = colnames(rdata_set$data)
-    search_settings_ = search_settings # list
-    #print(search_settings_)
-    #print(search_settings)
-    #rdata_set_select$data # selected and whatever else, filter
+  filtering = function() {
+    rdata_set_cumulate = rdata_set
+    search_settings_ = search_settings
     for (ipv in 1:length(search_settings_)) {
       current_ = search_settings_[[ipv]]
-      column_ = sym(str_extract(current_, '[^_]+'))
-      input_ = input[[ search_settings_[[ipv]] ]]
-      if(grep('search', current_)) {
-        rdata_set_cumul$data = rdata_set_cumul$data %>% filter(!!column_ == !!input_)
-      } else if (grep('f_gt', current_)) {
-        rdata_set_cumul$data = rdata_set_cumul$data %>% filter(!!column_ >= !!input_)
-      } else if (grep('f_lt', current_)) {
-        rdata_set_cumul$data = rdata_set_cumul$data %>% filter(!!column_ <= !!input_)
-      } else if (grep('s_lh', current_)) {
-        rdata_set_cumul$data = rdata_set_cumul$data %>% arrange(!!input_)
-      } else if (grep('s_hl', current_)) {
-        rdata_set_cumul$data = rdata_set_cumul$data %>% arrange(desc(!!input_))
+      print('current:')
+      print(current_)
+      column_ = sym(word(gsub('_', ' ', current_),-1))
+      input_ = input[[search_settings_[[ipv]]]]
+      print('input:')
+      print(input_)
+      if (is.null(input_) | (input_ == FALSE)) {
+        next
       }
-      # read in jpg files and print them!
+      if (grepl('Search', current_)) {
+        rdata_set_cumulate = rdata_set_cumulate %>% filter(!!column_ == !!input_)
+      } else if (grepl('Filter_greater_than', current_)) {
+        rdata_set_cumulate = rdata_set_cumulate %>% filter(!!column_ >= !!input_)
+      } else if (grepl('Filter_less_than', current_)) {
+        rdata_set_cumulate = rdata_set_cumulate %>% filter(!!column_ <= !!input_)
+      } else if (grepl('Sort_low_to_high', current_)) {
+        rdata_set_cumulate = rdata_set_cumulate %>% arrange(!!column_)
+      } else if (grepl('Sort_high_to_low', current_)) {
+        rdata_set_cumulate = rdata_set_cumulate %>% arrange(desc(!!column_))
+      }
     }
-    
-    file_list <<- rdata_set_cumul$data$Filename
-    
-    return(
-      lapply(seq_along(file_list), function(i) {
-        print(file_list)
-    output[[paste0("images", i)]] <- renderImage({
-      return(list(
-        src = file_list[i],
-        filetype = "image/jpeg",
-        height = 200,
-        width = 300
-      ))
-    }, deleteFile = FALSE)
-  })
-    )
+    file_list <<- rdata_set_cumulate$Filename
   }
   
-  
-  # Send the imageOutputs to the client
-  output$imageUI <- renderUI({
-    csearch(reactive(input$run))
+  core = reactive({
+    req(input$run)
+    input$run
+    isolate(filtering())
+    rdata_set_cumulate <<- rdata_set
     lapply(seq_along(file_list), function(i) {
-      imageOutput(paste0("images", i))
+      output[[paste0("images", i)]] <- renderImage({
+        print(paste(isolate(mdat_path()), file_list[i], sep = '/'))
+        list(
+          src = paste(isolate(mdat_path()), file_list[i], sep = '/'),
+          filetype = "image/jpeg",
+          height = 700,
+          width = 1000
+        )
+      }, deleteFile = FALSE)
     })
+    
   })
   
-  # 
-  # output$imageUI = 
-  #   renderUI({
-  #     
-  #     req(input$run)
-  #     
-  #     rdata_set_cumul$data = rdata_set$data
-  #     #rdata_set$data # original
-  #     #data_names = colnames(rdata_set$data)
-  #     search_settings_ = search_settings # list
-  #     #print(search_settings_)
-  #     #print(search_settings)
-  #     #rdata_set_select$data # selected and whatever else, filter
-  #     for (ipv in 1:length(search_settings_)) {
-  #       current_ = search_settings_[[ipv]]
-  #       column_ = sym(str_extract(current_, '[^_]+'))
-  #       input_ = input[[ search_settings_[[ipv]] ]]
-  #       if(grep('search', current_)) {
-  #         rdata_set_cumul$data = rdata_set_cumul$data %>% filter(!!column_ == !!input_)
-  #       } else if (grep('f_gt', current_)) {
-  #         rdata_set_cumul$data = rdata_set_cumul$data %>% filter(!!column_ >= !!input_)
-  #       } else if (grep('f_lt', current_)) {
-  #         rdata_set_cumul$data = rdata_set_cumul$data %>% filter(!!column_ <= !!input_)
-  #       } else if (grep('s_lh', current_)) {
-  #         rdata_set_cumul$data = rdata_set_cumul$data %>% arrange(!!input_)
-  #       } else if (grep('s_hl', current_)) {
-  #         rdata_set_cumul$data = rdata_set_cumul$data %>% arrange(desc(!!input_))
-  #       }
-  #       # read in jpg files and print them!
-  #     }
-  #     
-  #       # return(
-  #       #   lapply(rdata_set_cumul$data$Filename, function(x) {
-  #       #     path_ = paste(path_to_images$data, '/', x, sep = '')
-  #       #     renderUI({ renderImage(image_read(path_)) })
-  #       #   
-  #       #   })
-  #   #)
-  #     
-  #     return(
-  #       lapply(rdata_set_cumul$data$Filename, function(x) {
-  #         path_ = unlist(paste(path_to_images$data, '/', x, sep = ''))
-  #         print(path_)
-  #         renderUI({ renderImage(image_read(path_)) })
-  #       })
-  #     )
-  #     
-  #     
-  #     # #isolate({
-  #     # #result = results()
-  #     # #image_read(path_)
-  #     # return(
-  #     #   lapply(result, function(x) {
-  #     #     #renderImage(image_read(x))
-  #     #     print(result)
-  #     #   })
-  #     # )
-  #     # #})
-  #     
-  #   })
-  # 
-  
-}
+  output$imageUI <- renderUI({
+    core()
+    return(
+      flowLayout(
+        lapply(seq_along(file_list), function(i) {
+          imageOutput(paste0("images", i), width = "100%", height = "100%")
+        })
+      )
+    )
+    
+  })
 
+}
 
 shinyApp(ui = ui, server = server)
