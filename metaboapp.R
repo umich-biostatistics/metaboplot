@@ -1,4 +1,9 @@
 
+pkgs = as.character(installed.packages()[,'Package'])
+req.pkgs = c('shiny', 'shinyFiles', 'shinymanager', 'readr', 'tidyverse',
+             'DT', 'purrr', 'magick', 'stringr')
+sapply(req.pkgs, function(x) { if(!(x %in% pkgs)) install.packages(x) })
+
 library(shiny)
 library(shinyFiles)
 library(shinymanager)
