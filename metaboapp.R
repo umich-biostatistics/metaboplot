@@ -132,7 +132,7 @@ server = function(input, output, session) {
   shinyDirChoose(
     input,
     'dir',
-    roots = volumes,
+    roots = volumes(),
     session = session,
     filetypes = c('', 'jpg')
   )
